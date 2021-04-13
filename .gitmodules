@@ -1,0 +1,3 @@
+[submodule "Assignment 3 - Deep Learning/deep-learning-from-scratch"]
+	path = Assignment 4 - Deep Learning/deep-learning-from-scratch
+	url = git@github.com:RomainGrx/deep-learning-from-scratch.git
