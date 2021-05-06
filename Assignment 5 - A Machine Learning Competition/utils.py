@@ -9,6 +9,7 @@
 import os
 import pickle
 import numpy as np
+import tensorflow as tf
 import tensorflow.keras.backend as K
 from colorama import Fore, Back, Style, init
 
@@ -134,6 +135,57 @@ def P_model(model, X_train, y_train, X_val, y_val, with_info=False):
         )
 
     return p
+
+class BCREarlyStopping(tf.keras.callbacks.Callback):
+    """Stop training when the loss is at its min, i.e. the loss stops decreasing.
+
+      Arguments:
+          patience: Number of epochs to wait after min has been hit. After this
+          number of no improvement, training stops.
+      """
+
+    def __init__(self, patience=0, restore_best_weights=False):
+        super(BCREarlyStopping, self).__init__()
+        self.patience = patience
+        self.restore_best_weights = restore_best_weights
+        # best_weights to store the weights at which the minimum loss occurs.
+        self.best_weights = None
+
+    def on_train_begin(self, logs=None):
+        # The number of epoch it has waited when loss is no longer minimum.
+        self.wait = 0
+        # The epoch the training stops at.
+        self.stopped_epoch = 0
+        # Initialize the best as infinity.
+        self.best = .0
+        
+    def on_epoch_end(self, epoch, logs=None):
+        bcr = logs.get("bcr")
+        val_bcr = logs.get("val_bcr")
+        p1 = logs.get("val_p1")
+        p2 = logs.get("val_p2")
+        m1 = logs.get("val_m1")
+        m2 = logs.get("val_m2")
+        current = P(bcr, val_bcr, p1, p2, m1, m2)
+        
+        if np.less(self.best, current):
+            print(f"New best p value : {current}")
+            self.best = current
+            self.wait = 0
+            # Record the best weights if current results is better (less).
+            self.best_weights = self.model.get_weights()
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                self.stopped_epoch = epoch
+                self.model.stop_training = True
+                if self.restore_best_weights:
+                    print(f"Restoring model weights from the end of the best epoch. Best value : {self.best:.3f}")
+                    self.model.set_weights(self.best_weights)
+
+    def on_train_end(self, logs=None):
+        if self.stopped_epoch > 0:
+            print("Epoch %05d: early stopping" % (self.stopped_epoch + 1))
 
 
 class Report:
