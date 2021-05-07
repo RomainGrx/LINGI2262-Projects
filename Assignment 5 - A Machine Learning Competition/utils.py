@@ -3,7 +3,7 @@
 """
 @author : Romain Graux
 @date : 2021 Mai 03, 10:37:26
-@last modified : 2021 mei 07, 22:00:43
+@last modified : 2021 mei 07, 22:03:30
 """
 
 import os
@@ -135,6 +135,37 @@ def P_model(model, X_train, y_train, X_val, y_val, with_info=False):
         )
 
     return p
+
+
+class BCR(tf.keras.metrics.Metric):
+    def __init__(self, name="BCR", dtype=None):
+        super().__init__(name, dtype=dtype)
+        self.TP = tf.keras.metrics.TruePositives()
+        self.TN = tf.keras.metrics.TrueNegatives()
+        self.FP = tf.keras.metrics.FalsePositives()
+        self.FN = tf.keras.metrics.FalseNegatives()
+
+        self.bcr = self.add_weight(name="bcr", initializer="zeros")
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+
+        self.TP.update_state(y_true, y_pred)
+        self.TN.update_state(y_true, y_pred)
+        self.FP.update_state(y_true, y_pred)
+        self.FN.update_state(y_true, y_pred)
+
+        tp = self.TP.result()
+        tn = self.TN.result()
+        fp = self.FP.result()
+        fn = self.FN.result()
+
+        self.bcr.assign(0.5 * ((tp / (tp + fn)) + (tn / (fp + tn))))
+
+    def result(self):
+        return self.bcr
+
+    def reset_states(self):
+        self.bcr.assign(0.0)
 
 
 class BCREarlyStopping(tf.keras.callbacks.Callback):
