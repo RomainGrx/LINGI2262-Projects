@@ -3,7 +3,7 @@
 """
 @author : Romain Graux
 @date : 2021 Mai 03, 10:37:26
-@last modified : 2021 May 05, 16:19:06
+@last modified : 2021 mei 07, 22:00:43
 """
 
 import os
@@ -136,13 +136,14 @@ def P_model(model, X_train, y_train, X_val, y_val, with_info=False):
 
     return p
 
+
 class BCREarlyStopping(tf.keras.callbacks.Callback):
     """Stop training when the loss is at its min, i.e. the loss stops decreasing.
 
-      Arguments:
-          patience: Number of epochs to wait after min has been hit. After this
-          number of no improvement, training stops.
-      """
+    Arguments:
+        patience: Number of epochs to wait after min has been hit. After this
+        number of no improvement, training stops.
+    """
 
     def __init__(self, patience=0, restore_best_weights=False):
         super(BCREarlyStopping, self).__init__()
@@ -157,8 +158,8 @@ class BCREarlyStopping(tf.keras.callbacks.Callback):
         # The epoch the training stops at.
         self.stopped_epoch = 0
         # Initialize the best as infinity.
-        self.best = .0
-        
+        self.best = 0.0
+
     def on_epoch_end(self, epoch, logs=None):
         bcr = logs.get("bcr")
         val_bcr = logs.get("val_bcr")
@@ -167,7 +168,7 @@ class BCREarlyStopping(tf.keras.callbacks.Callback):
         m1 = logs.get("val_m1")
         m2 = logs.get("val_m2")
         current = P(bcr, val_bcr, p1, p2, m1, m2)
-        
+
         if np.less(self.best, current):
             print(f"New best p value : {current}")
             self.best = current
@@ -180,7 +181,9 @@ class BCREarlyStopping(tf.keras.callbacks.Callback):
                 self.stopped_epoch = epoch
                 self.model.stop_training = True
                 if self.restore_best_weights:
-                    print(f"Restoring model weights from the end of the best epoch. Best value : {self.best:.3f}")
+                    print(
+                        f"Restoring model weights from the end of the best epoch. Best value : {self.best:.3f}"
+                    )
                     self.model.set_weights(self.best_weights)
 
     def on_train_end(self, logs=None):
@@ -238,3 +241,54 @@ class Report:
         print(f'BCR hat : {self.info["bcr_hat"].numpy():.3f}')
 
         return self
+
+
+class KFoldTrainingSequential:
+    @classmethod
+    def compute(
+        self,
+        X,
+        y,
+        get_model,
+        epochs,
+        batch_size,
+        callbacks=[],
+        k=10,
+        shuffle=False,
+        seed=None,
+    ):
+        from sklearn.model_selection import KFold, StratifiedKFold
+        from tensorflow.keras.models import clone_model
+
+        kf = StratifiedKFold(k, shuffle=shuffle, random_state=seed)
+
+        results = dict()
+
+        for kidx, (train_indices, val_indices) in enumerate(kf.split(X, y)):
+            print(f" Begin fit on fold {kidx+1}/{k} ".center(75, "="), end="\n" * 2)
+
+            result = dict()
+            X_train, y_train = X[train_indices], y[train_indices]
+            X_val, y_val = X[val_indices], y[val_indices]
+
+            model = get_model()
+
+            fitted = model.fit(
+                X_train,
+                y_train,
+                epochs=epochs,
+                validation_data=(X_val, y_val),
+                batch_size=batch_size,
+                callbacks=callbacks,
+                verbose=0,
+            )
+
+            result["model"] = model
+            result["fitted"] = fitted
+            result["report"] = Report(model, X_train, y_train, X_val, y_val)
+
+            result["report"].to_stdout()
+
+            results[kidx] = result
+
+        return results
